@@ -1133,6 +1133,8 @@ function handleCSVUpload(event) {
     
     var codeLines = [
       '# File: ' + file.name + ' (' + rowCount + ' rows)',
+      'import micropip',
+      'await micropip.install("pandas")',
       'import pandas as pd',
       'from io import StringIO',
       '',
