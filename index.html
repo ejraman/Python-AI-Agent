@@ -282,7 +282,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <button class="send-agent-btn" id="sendAgentBtn" onclick="sendToAgent()">→ Send to Agent</button>
           <button class="upload-btn" onclick="document.getElementById('csvInput').click()">&#128194; Upload CSV</button>
           <button class="reset-editor-btn" onclick="document.getElementById('codeEditor').value=''">Clear</button>
-          <input type="file" id="csvInput" class="file-input" accept=".csv,.txt" onchange="handleCSVUpload(event)"/>
+          <input type="file" id="csvInput" class="file-input" accept="*" onchange="handleCSVUpload(event)"/>
         </div>
         <div class="csv-info" id="csvInfo"></div>
       </div>
