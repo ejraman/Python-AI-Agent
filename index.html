@@ -354,7 +354,12 @@ function runCode(code) {
     var isErr = false;
     pyodide.setStdout({batched: function(t){ output += t + '\n'; }});
     pyodide.setStderr({batched: function(t){ output += t + '\n'; isErr = true; }});
-    pyodide.runPythonAsync(code).then(function() {
+    // Auto-load pandas if needed
+    var needsPandas = code.includes('import pandas') || code.includes('from pandas');
+    var loader = needsPandas ? pyodide.loadPackage('pandas') : Promise.resolve();
+    loader.then(function() {
+      return pyodide.runPythonAsync(code);
+    }).then(function() {
       resolve({out: output.trim() || '(no output)', err: isErr});
     }).catch(function(e) {
       resolve({out: e.message || String(e), err: true});
@@ -1133,8 +1138,6 @@ function handleCSVUpload(event) {
     
     var codeLines = [
       '# File: ' + file.name + ' (' + rowCount + ' rows)',
-      'import micropip',
-      'await micropip.install("pandas")',
       'import pandas as pd',
       'from io import StringIO',
       '',
