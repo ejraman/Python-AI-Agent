@@ -51,18 +51,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .left{display:flex;flex-direction:column;border-right:none;overflow:hidden;background:var(--surface)}
 .left-hdr{padding:10px 14px;border-bottom:1px solid rgba(56,189,248,.1);display:flex;align-items:center;gap:8px;flex-shrink:0}
 .left-hdr-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.agent-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.agent-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0;word-break:break-word}
 .agent-feed::-webkit-scrollbar{width:4px}
 .agent-feed::-webkit-scrollbar-track{background:transparent}
 .agent-feed::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
 /* ── Agent Steps ──────────────────────────────────────────────── */
 .step{border-radius:8px;overflow:hidden;border:1px solid var(--border)}
-.step-hdr{padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:.08em;display:flex;align-items:center;gap:6px}
-.step-body{padding:10px 12px;font-size:12.5px;line-height:1.65}
+.step-hdr{padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:.04em;display:flex;align-items:center;gap:6px;flex-wrap:wrap;word-break:break-word;line-height:1.4}
+.step-body{padding:10px 12px;font-size:12px;line-height:1.65;word-break:break-word;overflow-wrap:break-word}
 .step.think .step-hdr{background:rgba(167,139,250,.08);color:var(--purple);border-bottom:1px solid rgba(167,139,250,.15)}
 .step.think .step-body{background:rgba(167,139,250,.03);color:var(--text)}
-.step.act .step-hdr{background:rgba(56,189,248,.08);color:var(--accent);border-bottom:1px solid rgba(56,189,248,.15)}
+.step.act .step-hdr{background:rgba(56,189,248,.08);color:var(--accent);border-bottom:1px solid rgba(56,189,248,.15);text-transform:none;letter-spacing:.02em}
 .step.act .step-body{background:rgba(56,189,248,.03)}
 .step.observe .step-hdr{background:rgba(74,222,128,.08);color:var(--green);border-bottom:1px solid rgba(74,222,128,.15)}
 .step.observe .step-body{background:rgba(74,222,128,.03)}
@@ -111,7 +111,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .reset-editor-btn:hover{color:var(--text)}
 
 .output-section{border-top:1px solid var(--border);padding:10px;flex-shrink:0}
-.out-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-family:var(--font-mono);font-size:11.5px;min-height:50px;max-height:100px;overflow-y:auto;white-space:pre-wrap;color:var(--green);line-height:1.6}
+.out-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-family:var(--font-mono);font-size:11.5px;min-height:120px;max-height:220px;overflow-y:auto;white-space:pre-wrap;color:var(--green);line-height:1.6}
 .out-box.err{color:var(--red)}
 .out-ph{color:var(--muted);font-style:italic}
 
@@ -618,7 +618,8 @@ or
 
     // Handle ACTION
     if (parsed.action) {
-      var actEl = addStep('act', 'ACTION: ' + parsed.action.toUpperCase(), '', parsed.action.toLowerCase().replace(/[^a-z]/g,''));
+      var shortAction = parsed.action.length > 30 ? parsed.action.substring(0,30)+'...' : parsed.action;
+var actEl = addStep('act', shortAction, '', 'run');
       var actionContent = '';
 
       if (parsed.runCode) {
@@ -628,8 +629,12 @@ or
         // Actually run the code
         var result = await runCode(parsed.runCode);
 
-        // Update editor with agent's code
-        document.getElementById('codeEditor').value = parsed.runCode;
+        // Update editor with agent's code (strip markdown fences)
+        var cleanCode = parsed.runCode
+          .replace(/^```[a-z]*\n?/i, '')
+          .replace(/```$/,'')
+          .trim();
+        document.getElementById('codeEditor').value = cleanCode;
         var ob = document.getElementById('outBox');
         ob.className = 'out-box' + (result.err ? ' err' : '');
         ob.textContent = result.out;
@@ -646,8 +651,8 @@ or
           // Code ran successfully — check if we should continue
           if (iteration >= 2) {
             // Likely done after successful run
-            var doneEl = addStep('done', 'COMPLETE', '');
-            setStepContent(doneEl, parsed.explain || 'Code ran successfully. The agent has completed the task.');
+            var doneEl = addStep('done', 'Complete', '');
+            setStepContent(doneEl, parsed.explain || '<b>Code ran successfully.</b> Agent task complete.');
             break;
           }
         } else if (result.err) {
@@ -664,7 +669,7 @@ or
     }
 
     if (parsed.done) {
-      var doneEl = addStep('done', 'TASK COMPLETE', '');
+      var doneEl = addStep('done', 'Complete', '');
       setStepContent(doneEl, formatExplain(parsed.done));
       sessionHistory.push({role:'user', content: userContent});
       sessionHistory.push({role:'assistant', content: response});
@@ -717,7 +722,20 @@ function parseAgentResponse(text) {
 
   // Extract RUN_CODE
   var codeMatch = text.match(/<RUN_CODE>([\s\S]*?)<\/RUN_CODE>/i);
-  if (codeMatch) result.runCode = codeMatch[1].trim();
+  if (codeMatch) {
+    result.runCode = codeMatch[1].trim()
+      .replace(/^```[a-z]*\n?/i,'')
+      .replace(/```$/,'')
+      .trim();
+  }
+  // Also detect plain code blocks if no RUN_CODE tags
+  if (!result.runCode) {
+    var plainCode = text.match(/```python\n([\s\S]*?)```/i);
+    if (plainCode) {
+      result.runCode = plainCode[1].trim();
+      result.action = result.action || 'run_code';
+    }
+  }
 
   // Extract EXPLAIN
   var explainMatch = text.match(/<EXPLAIN>([\s\S]*?)<\/EXPLAIN>/i);
