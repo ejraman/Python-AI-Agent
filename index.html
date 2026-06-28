@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Python AI Agent</title>
+<style>
+/* ── Reset & Base ─────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:        #0a0c14;
+  --surface:   #111827;
+  --surface2:  #1a2035;
+  --border:    #1e2d45;
+  --border2:   #2a3a55;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --accent:    #38bdf8;
+  --accent2:   #0ea5e9;
+  --green:     #4ade80;
+  --orange:    #fb923c;
+  --red:       #f87171;
+  --yellow:    #fbbf24;
+  --purple:    #a78bfa;
+  --pink:      #f472b6;
+  --think-bg:  #1a1a2e;
+  --act-bg:    #0f2a1a;
+  --obs-bg:    #1a2a0f;
+  --font-mono: 'Cascadia Code','Fira Mono','Courier New',monospace;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+
+/* ── Layout ───────────────────────────────────────────────────── */
+.app{display:grid;grid-template-rows:56px 1fr;height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+.logo{font-size:18px;font-weight:700;color:var(--accent);letter-spacing:-.02em}
+.logo span{color:var(--orange)}
+.tagline{font-size:11px;color:var(--muted);margin-left:4px}
+.py-badge{padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;border:1px solid;margin-left:auto}
+.py-badge.loading{background:rgba(251,191,36,.08);color:var(--yellow);border-color:rgba(251,191,36,.2)}
+.py-badge.ready{background:rgba(74,222,128,.08);color:var(--green);border-color:rgba(74,222,128,.2)}
+.py-badge.fail{background:rgba(248,113,113,.08);color:var(--red);border-color:rgba(248,113,113,.2)}
+.mode-tabs{display:flex;gap:4px;margin-left:12px}
+.mtab{padding:4px 12px;font-size:11px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;background:transparent;color:var(--muted);transition:all .15s}
+.mtab.active{background:var(--accent);color:#0a0c14;border-color:var(--accent);font-weight:600}
+
+.body{display:grid;grid-template-columns:280px 1fr;overflow:hidden;min-height:0}
+
+/* ── Left Panel ───────────────────────────────────────────────── */
+.left{display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:var(--surface)}
+.left-hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.left-hdr-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.agent-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:0}
+.agent-feed::-webkit-scrollbar{width:4px}
+.agent-feed::-webkit-scrollbar-track{background:transparent}
+.agent-feed::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── Agent Steps ──────────────────────────────────────────────── */
+.step{border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.step-hdr{padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:.08em;display:flex;align-items:center;gap:6px}
+.step-body{padding:10px 12px;font-size:12.5px;line-height:1.65}
+.step.think .step-hdr{background:rgba(167,139,250,.08);color:var(--purple);border-bottom:1px solid rgba(167,139,250,.15)}
+.step.think .step-body{background:rgba(167,139,250,.03);color:var(--text)}
+.step.act .step-hdr{background:rgba(56,189,248,.08);color:var(--accent);border-bottom:1px solid rgba(56,189,248,.15)}
+.step.act .step-body{background:rgba(56,189,248,.03)}
+.step.observe .step-hdr{background:rgba(74,222,128,.08);color:var(--green);border-bottom:1px solid rgba(74,222,128,.15)}
+.step.observe .step-body{background:rgba(74,222,128,.03)}
+.step.error .step-hdr{background:rgba(248,113,113,.08);color:var(--red);border-bottom:1px solid rgba(248,113,113,.15)}
+.step.error .step-body{background:rgba(248,113,113,.03)}
+.step.done .step-hdr{background:rgba(251,146,60,.08);color:var(--orange);border-bottom:1px solid rgba(251,146,60,.15)}
+.step.done .step-body{background:rgba(251,146,60,.03)}
+.step.user-msg .step-hdr{background:rgba(100,116,139,.08);color:var(--muted);border-bottom:1px solid rgba(100,116,139,.15)}
+.step.user-msg .step-body{background:var(--surface2);color:var(--text)}
+
+.code-snippet{background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-family:var(--font-mono);font-size:11px;color:#cdd6f4;margin-top:6px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto}
+.output-snippet{background:#0d1117;border:1px solid var(--border);border-radius:5px;padding:8px 10px;font-family:var(--font-mono);font-size:11px;color:var(--green);margin-top:6px;white-space:pre-wrap;max-height:150px;overflow-y:auto}
+.output-snippet.err{color:var(--red)}
+.tool-tag{display:inline-block;padding:1px 7px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.05em;margin-right:4px;font-family:var(--font-mono)}
+.tag-run{background:rgba(74,222,128,.12);color:var(--green)}
+.tag-fix{background:rgba(248,113,113,.12);color:var(--red)}
+.tag-explain{background:rgba(167,139,250,.12);color:var(--purple)}
+.tag-optimise{background:rgba(251,191,36,.12);color:var(--yellow)}
+.tag-test{background:rgba(244,114,182,.12);color:var(--pink)}
+
+.typing-dots{display:inline-flex;gap:3px;align-items:center;padding:8px 12px}
+.typing-dots span{width:5px;height:5px;background:var(--accent);border-radius:50%;animation:bounce .8s infinite}
+.typing-dots span:nth-child(2){animation-delay:.15s}
+.typing-dots span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+/* ── Right Panel ──────────────────────────────────────────────── */
+.right{display:flex;flex-direction:column;overflow:hidden;background:var(--surface)}
+.right-hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.right-hdr-title{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex:1}
+.clear-btn{padding:3px 10px;font-size:10px;border:1px solid var(--border2);border-radius:5px;cursor:pointer;background:transparent;color:var(--muted)}
+.clear-btn:hover{color:var(--text);border-color:var(--muted)}
+
+.editor-section{flex-shrink:0;padding:10px}
+.editor-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.code-editor{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;color:#cdd6f4;font-family:var(--font-mono);font-size:12.5px;padding:10px 12px;resize:none;outline:none;line-height:1.65;height:180px}
+.code-editor:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,189,248,.08)}
+.editor-actions{display:flex;gap:8px;margin-top:10px;align-items:center}
+.run-btn{padding:9px 22px;font-size:13px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--green);color:#0a0c14;display:flex;align-items:center;gap:6px;transition:background .15s;letter-spacing:.01em}
+.run-btn:hover{background:#22c55e}
+.run-btn:disabled{opacity:.4;cursor:not-allowed}
+.send-agent-btn{padding:9px 22px;font-size:13px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--accent);color:#0a0c14;transition:background .15s;letter-spacing:.01em}
+.send-agent-btn:hover{background:var(--accent2)}
+.send-agent-btn:disabled{opacity:.4;cursor:not-allowed}
+.reset-editor-btn{padding:9px 18px;font-size:12px;border:1px solid var(--border2);border-radius:8px;cursor:pointer;background:transparent;color:var(--muted);font-weight:500}
+.reset-editor-btn:hover{color:var(--text)}
+
+.output-section{border-top:1px solid var(--border);padding:10px;flex-shrink:0}
+.out-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-family:var(--font-mono);font-size:11.5px;min-height:50px;max-height:100px;overflow-y:auto;white-space:pre-wrap;color:var(--green);line-height:1.6}
+.out-box.err{color:var(--red)}
+.out-ph{color:var(--muted);font-style:italic}
+
+.input-section{border-top:1px solid var(--border);padding:10px;flex-shrink:0}
+.input-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+.user-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;color:var(--text);font-size:12.5px;padding:9px 11px;resize:none;outline:none;line-height:1.6;font-family:inherit;min-height:70px}
+.user-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,189,248,.08)}
+.input-actions{display:flex;gap:8px;margin-top:10px;align-items:center}
+.ask-btn{padding:10px 28px;font-size:13px;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:var(--accent);color:#0a0c14;transition:background .15s;letter-spacing:.01em}
+.ask-btn:hover{background:var(--accent2)}
+.ask-btn:disabled{opacity:.4;cursor:not-allowed}
+.stop-btn{padding:10px 20px;font-size:13px;font-weight:600;border:1px solid var(--red);border-radius:8px;cursor:pointer;background:rgba(248,113,113,.08);color:var(--red);display:none}
+.stop-btn.show{display:block}
+.char-hint{font-size:10px;color:var(--muted);margin-left:auto}
+
+/* ── Quick Prompts ────────────────────────────────────────────── */
+.quick-prompts{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0}
+.qp{padding:3px 9px;font-size:10px;border:1px solid var(--border2);border-radius:12px;cursor:pointer;background:transparent;color:var(--muted);transition:all .12s;white-space:nowrap}
+.qp:hover{color:var(--text);border-color:var(--accent);background:rgba(56,189,248,.05)}
+
+/* ── Status bar ───────────────────────────────────────────────── */
+.status-bar{padding:4px 14px;border-top:1px solid var(--border);background:var(--surface);font-size:10px;color:var(--muted);display:flex;gap:12px;flex-shrink:0}
+.status-item{display:flex;align-items:center;gap:4px}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.status-dot.green{background:var(--green)}
+.status-dot.yellow{background:var(--yellow)}
+.status-dot.red{background:var(--red)}
+
+/* ── Welcome ──────────────────────────────────────────────────── */
+.welcome{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;flex:1;gap:8px;padding:14px;text-align:left}
+.welcome-icon{font-size:22px;margin-bottom:0}
+.welcome-title{font-size:14px;font-weight:700;color:var(--text)}
+.welcome-sub{font-size:11.5px;color:var(--muted);max-width:100%;line-height:1.5}
+.welcome-examples{display:flex;flex-direction:column;gap:6px;width:100%}
+.ex-chip{padding:6px 10px;border:1px solid var(--border2);border-radius:6px;cursor:pointer;font-size:11px;color:var(--muted);text-align:left;background:var(--surface2);transition:all .12s;line-height:1.4}
+.ex-chip:hover{border-color:var(--accent);color:var(--text);background:rgba(56,189,248,.04)}
+.ex-chip b{color:var(--accent)}
+/* ── Test Suite ───────────────────────────────────────────────── */
+.test-panel{display:none;flex-direction:column;height:100%;overflow:hidden}
+.test-panel.active{display:flex}
+.test-topbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;background:var(--surface)}
+.test-title{font-size:13px;font-weight:700;color:var(--yellow)}
+.run-all-btn{padding:7px 18px;font-size:12px;font-weight:700;border:none;border-radius:7px;cursor:pointer;background:var(--yellow);color:#0a0c14;transition:background .15s}
+.run-all-btn:hover{background:#f59e0b}
+.run-all-btn:disabled{opacity:.4;cursor:not-allowed}
+.export-btn{padding:7px 14px;font-size:12px;font-weight:600;border:1px solid var(--green);border-radius:7px;cursor:pointer;background:transparent;color:var(--green)}
+.export-btn:hover{background:rgba(74,222,128,.08)}
+.test-stats{display:flex;gap:16px;margin-left:auto;font-size:11px}
+.stat{display:flex;align-items:center;gap:5px;font-weight:600}
+.stat-dot{width:8px;height:8px;border-radius:50%}
+.test-body{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px}
+.test-category{border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.cat-hdr{padding:8px 12px;background:var(--surface2);display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.cat-hdr:hover{background:var(--border)}
+.cat-name{font-size:12px;font-weight:700;color:var(--text);flex:1}
+.cat-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600}
+.cat-progress{font-size:10px;color:var(--muted);margin-left:auto}
+.test-table{width:100%;border-collapse:collapse;font-size:11px}
+.test-table th{padding:7px 10px;text-align:left;background:rgba(30,45,69,.8);color:var(--muted);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+.test-table td{padding:7px 10px;border-bottom:1px solid rgba(30,45,69,.5);vertical-align:top;line-height:1.5}
+.test-table tr:last-child td{border-bottom:none}
+.test-table tr:hover td{background:rgba(56,189,248,.03)}
+.status-pass{color:var(--green);font-weight:700;font-size:11px}
+.status-fail{color:var(--red);font-weight:700;font-size:11px}
+.status-error{color:var(--orange);font-weight:700;font-size:11px}
+.status-pending{color:var(--muted);font-size:11px}
+.status-running{color:var(--yellow);font-size:11px}
+.test-code{font-family:var(--font-mono);font-size:10px;color:#cdd6f4;background:var(--bg);padding:3px 6px;border-radius:3px;max-width:200px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.test-output{font-family:var(--font-mono);font-size:10px;max-width:180px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.test-output.ok{color:var(--green)}
+.test-output.err{color:var(--red)}
+.expand-row{background:var(--bg)!important;padding:0!important}
+.expand-content{padding:10px 12px;font-family:var(--font-mono);font-size:11px;white-space:pre-wrap;color:#cdd6f4;border-top:1px solid var(--border)}
+.progress-bar-wrap{height:3px;background:var(--border);flex:1;border-radius:2px;overflow:hidden;max-width:100px}
+.progress-bar-fill{height:100%;background:var(--green);border-radius:2px;transition:width .3s}
+.complexity-badge{font-size:9px;padding:1px 6px;border-radius:3px;font-weight:600}
+.c-simple{background:rgba(74,222,128,.1);color:var(--green)}
+.c-medium{background:rgba(251,191,36,.1);color:var(--yellow)}
+.c-complex{background:rgba(248,113,113,.1);color:var(--red)}
+.time-cell{color:var(--muted);font-size:10px;font-family:var(--font-mono)}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div class="logo">Python<span>Agent</span></div>
+    <div class="tagline">Universal Python AI — thinks, runs code, fixes, teaches</div>
+    <div class="mode-tabs">
+      <button class="mtab active" onclick="setMode('learn')">Learn</button>
+      <button class="mtab" onclick="setMode('debug')">Debug</button>
+      <button class="mtab" onclick="setMode('build')">Build</button>
+      <button class="mtab" onclick="setMode('test')" style="border-color:rgba(251,191,36,.3);color:var(--yellow)">&#9654; Test Suite</button>
+    </div>
+    <div class="py-badge loading" id="pyBadge">⏳ Loading Python...</div>
+  </div>
+
+  <div class="body">
+
+    <!-- Test Suite Panel -->
+    <div class="test-panel" id="testPanel" style="grid-column:1/-1;display:none;flex-direction:column;height:100%;overflow:hidden">
+      <div class="test-topbar">
+        <span class="test-title">&#9654; Automated Test Suite</span>
+        <button class="run-all-btn" id="runAllBtn" onclick="runAllTests()">&#9654; Run All Tests</button>
+        <button class="export-btn" onclick="exportReport()">&#8595; Export Report</button>
+        <div class="test-stats">
+          <div class="stat"><div class="stat-dot" style="background:var(--green)"></div><span id="statPass">0 Pass</span></div>
+          <div class="stat"><div class="stat-dot" style="background:var(--red)"></div><span id="statFail">0 Fail</span></div>
+          <div class="stat"><div class="stat-dot" style="background:var(--orange)"></div><span id="statError">0 Error</span></div>
+          <div class="stat"><div class="stat-dot" style="background:var(--muted)"></div><span id="statPending">45 Pending</span></div>
+        </div>
+      </div>
+      <div class="test-body" id="testBody" style="flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px"></div>
+    </div>
+
+
+    <!-- Left: Agent Feed -->
+    <div class="left">
+      <div class="left-hdr">
+        <div class="left-hdr-title">Agent Reasoning</div>
+        <div id="loopCount" style="font-size:10px;color:var(--muted);margin-left:auto"></div>
+      </div>
+      <div class="agent-feed" id="agentFeed">
+        <div class="welcome">
+          <div class="welcome-icon">🤖</div>
+          <div class="welcome-title">Python AI Agent</div>
+          <div class="welcome-sub">Ask anything Python. The agent thinks through your problem, runs code autonomously, fixes errors, and explains every step.</div>
+          <div class="welcome-examples">
+            <div class="ex-chip" onclick="useExample(this)"><b>Debug:</b> Explain why list.append() in a loop gives unexpected results</div>
+            <div class="ex-chip" onclick="useExample(this)"><b>Build:</b> Write a function to read a CSV and calculate average scores per student</div>
+            <div class="ex-chip" onclick="useExample(this)"><b>Learn:</b> Teach me how decorators work with a live example I can modify</div>
+            <div class="ex-chip" onclick="useExample(this)"><b>Fix:</b> My code throws TypeError: unsupported operand type — help me understand why</div>
+            <div class="ex-chip" onclick="useExample(this)"><b>Optimise:</b> I have a nested for loop — show me a faster way using list comprehension</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Editor + Input -->
+    <div class="right">
+      <div class="right-hdr">
+        <div class="right-hdr-title">Code Editor</div>
+        <button class="clear-btn" onclick="clearAll()">Clear all</button>
+      </div>
+
+      <div class="quick-prompts" id="quickPrompts">
+        <button class="qp" onclick="qpClick('What is the difference between a list and a tuple?')">list vs tuple</button>
+        <button class="qp" onclick="qpClick('Explain *args and **kwargs with examples')">*args **kwargs</button>
+        <button class="qp" onclick="qpClick('Show me how to handle exceptions properly in Python')">try/except</button>
+        <button class="qp" onclick="qpClick('How do I read and write a CSV file with pandas?')">pandas CSV</button>
+        <button class="qp" onclick="qpClick('Explain list comprehensions vs for loops')">comprehensions</button>
+        <button class="qp" onclick="qpClick('What is the difference between is and == in Python?')">is vs ==</button>
+        <button class="qp" onclick="qpClick('How does Python handle memory and garbage collection?')">memory</button>
+        <button class="qp" onclick="qpClick('Show me how to use zip() and enumerate() effectively')">zip/enumerate</button>
+      </div>
+
+      <div class="editor-section">
+        <div class="editor-label">Your code (optional — paste code for agent to analyse)</div>
+        <textarea class="code-editor" id="codeEditor" placeholder="# Paste your Python code here for the agent to analyse, fix, or optimise&#10;# Or leave blank and just ask your question below&#10;&#10;# Example:&#10;def calculate_average(numbers):&#10;    total = 0&#10;    for n in numbers:&#10;        total = total + n&#10;    return total / len(numbers)&#10;&#10;print(calculate_average([80, 75, 90, 85]))" spellcheck="false"></textarea>
+        <div class="editor-actions">
+          <button class="run-btn" id="runBtn" onclick="runUserCode()">&#9654; Run</button>
+          <button class="send-agent-btn" id="sendAgentBtn" onclick="sendToAgent()">Send to Agent</button>
+          <button class="reset-editor-btn" onclick="document.getElementById('codeEditor').value=''">Clear</button>
+        </div>
+      </div>
+
+      <div class="output-section">
+        <div class="editor-label">Output</div>
+        <div class="out-box" id="outBox"><span class="out-ph">Run your code to see output...</span></div>
+      </div>
+
+      <div class="input-section">
+        <div class="editor-label">Ask the Agent</div>
+        <textarea class="user-input" id="userInput" placeholder="What do you want the agent to help with?&#10;&#10;Examples:&#10;• Explain what my code does line by line&#10;• Fix the bug in my code&#10;• Teach me recursion with examples I can run&#10;• Optimise this function&#10;• Write unit tests for my code" onkeydown="handleKey(event)"></textarea>
+        <div class="input-actions">
+          <button class="ask-btn" id="askBtn" onclick="askAgent()">Ask Agent</button>
+          <button class="stop-btn" id="stopBtn" onclick="stopAgent()">&#9632; Stop</button>
+          <span class="char-hint">Ctrl+Enter to send</span>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-item"><div class="status-dot" id="pyDot"></div><span id="pyStatus">Python: loading</span></div>
+        <div class="status-item"><div class="status-dot green"></div><span>Groq: connected</span></div>
+        <div class="status-item"><div class="status-dot green"></div><span>Free tier</span></div>
+        <div class="status-item" style="margin-left:auto"><span id="tokenCount">0 tokens used</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+var pyodide = null, pyReady = false;
+var currentMode = 'learn';
+var agentRunning = false, stopRequested = false;
+var sessionHistory = [];
+var totalTokens = 0;
+var loopCount = 0;
+var outEl = null;
+
+// ── Pyodide ───────────────────────────────────────────────────────────────
+function loadPyodide_() {
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.5/full/pyodide.js';
+  s.onload = function() {
+    loadPyodide().then(function(py) {
+      pyodide = py;
+      pyReady = true;
+      setBadge('ready', '✓ Python ready');
+      document.getElementById('pyDot').className = 'status-dot green';
+      document.getElementById('pyStatus').textContent = 'Python: ready';
+    }).catch(function() {
+      setBadge('fail', '✗ Python failed');
+      document.getElementById('pyDot').className = 'status-dot red';
+    });
+  };
+  document.head.appendChild(s);
+}
+
+function setBadge(cls, txt) {
+  var b = document.getElementById('pyBadge');
+  b.className = 'py-badge ' + cls;
+  b.textContent = txt;
+}
+
+function runCode(code) {
+  return new Promise(function(resolve) {
+    if (!pyReady) { resolve({out:'Python not ready yet', err:true}); return; }
+    var output = '';
+    var isErr = false;
+    pyodide.setStdout({batched: function(t){ output += t + '\n'; }});
+    pyodide.setStderr({batched: function(t){ output += t + '\n'; isErr = true; }});
+    pyodide.runPythonAsync(code).then(function() {
+      resolve({out: output.trim() || '(no output)', err: isErr});
+    }).catch(function(e) {
+      resolve({out: e.message || String(e), err: true});
+    });
+  });
+}
+
+// ── User Code Run ─────────────────────────────────────────────────────────
+function runUserCode() {
+  if (!pyReady) { alert('Python is still loading — please wait.'); return; }
+  var code = document.getElementById('codeEditor').value;
+  var btn = document.getElementById('runBtn');
+  var ob = document.getElementById('outBox');
+  btn.disabled = true; btn.textContent = '⏳ Running...';
+  ob.className = 'out-box'; ob.innerHTML = '';
+  runCode(code).then(function(r) {
+    ob.className = 'out-box' + (r.err ? ' err' : '');
+    ob.textContent = r.out;
+    btn.disabled = false; btn.innerHTML = '&#9654; Run';
+  });
+}
+
+// ── Mode ──────────────────────────────────────────────────────────────────
+function setMode(m) {
+  currentMode = m;
+  document.querySelectorAll('.mtab').forEach(function(b,i) {
+    b.classList.toggle('active', ['learn','debug','build','test'][i] === m);
+  });
+  var mainPanels = document.querySelector('.left');
+  var rightPanel = document.querySelector('.right');
+  var testPanel = document.getElementById('testPanel');
+  if (m === 'test') {
+    if (mainPanels) mainPanels.style.display = 'none';
+    if (rightPanel) rightPanel.style.display = 'none';
+    testPanel.style.display = 'flex';
+    testPanel.style.flexDirection = 'column';
+    testPanel.style.gridColumn = '1 / -1';
+    if (Object.keys(testResults).length === 0) initTestUI();
+  } else {
+    if (mainPanels) mainPanels.style.display = 'flex';
+    if (rightPanel) rightPanel.style.display = 'flex';
+    testPanel.style.display = 'none';
+  }
+}
+
+// ── Quick prompts ─────────────────────────────────────────────────────────
+function qpClick(text) {
+  document.getElementById('userInput').value = text;
+  document.getElementById('userInput').focus();
+}
+
+function useExample(el) {
+  var text = el.textContent.replace(/^(Debug|Build|Learn|Fix|Optimise):\s*/,'');
+  document.getElementById('userInput').value = text;
+  document.getElementById('userInput').focus();
+}
+
+function handleKey(e) {
+  if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); askAgent(); }
+}
+
+// ── Agent Feed UI ─────────────────────────────────────────────────────────
+function clearFeed() {
+  var feed = document.getElementById('agentFeed');
+  feed.innerHTML = '';
+}
+
+function addStep(type, label, content, toolTag) {
+  var feed = document.getElementById('agentFeed');
+  // Remove welcome if present
+  var w = feed.querySelector('.welcome');
+  if (w) w.remove();
+
+  var div = document.createElement('div');
+  div.className = 'step ' + type;
+  var tagHtml = toolTag ? '<span class="tool-tag tag-'+toolTag+'">'+toolTag.toUpperCase()+'</span>' : '';
+  div.innerHTML = '<div class="step-hdr">' + tagHtml + label + '</div><div class="step-body" id="step-'+Date.now()+'"></div>';
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+  return div.querySelector('.step-body');
+}
+
+function addUserMsg(text) {
+  var feed = document.getElementById('agentFeed');
+  var w = feed.querySelector('.welcome');
+  if (w) w.remove();
+  var div = document.createElement('div');
+  div.className = 'step user-msg';
+  div.innerHTML = '<div class="step-hdr">YOU</div><div class="step-body">' + esc(text) + '</div>';
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function addTyping() {
+  var feed = document.getElementById('agentFeed');
+  var div = document.createElement('div');
+  div.id = 'typing-indicator';
+  div.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+  feed.appendChild(div);
+  feed.scrollTop = feed.scrollHeight;
+  return div;
+}
+
+function removeTyping() {
+  var t = document.getElementById('typing-indicator');
+  if (t) t.remove();
+}
+
+function setStepContent(el, html) {
+  el.innerHTML = html;
+  var feed = document.getElementById('agentFeed');
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+}
+
+function formatCode(code) {
+  return '<div class="code-snippet">' + esc(code) + '</div>';
+}
+
+function formatOutput(out, isErr) {
+  return '<div class="output-snippet' + (isErr?' err':'') + '">' + esc(out) + '</div>';
+}
+
+// ── Stop ──────────────────────────────────────────────────────────────────
+function stopAgent() {
+  stopRequested = true;
+  document.getElementById('stopBtn').classList.remove('show');
+}
+
+function sendToAgent() {
+  var code = document.getElementById('codeEditor').value.trim();
+  if (!code) { alert('No code in the editor to send.'); return; }
+  var current = document.getElementById('userInput').value.trim();
+  if (!current) {
+    document.getElementById('userInput').value = 'Analyse and explain this code. Identify any issues and suggest improvements.';
+  }
+  askAgent();
+}
+
+function clearAll() {
+  document.getElementById('codeEditor').value = '';
+  document.getElementById('userInput').value = '';
+  document.getElementById('outBox').className = 'out-box';
+  document.getElementById('outBox').innerHTML = '<span class="out-ph">Run your code to see output...</span>';
+  clearFeed();
+  sessionHistory = [];
+  loopCount = 0;
+  document.getElementById('loopCount').textContent = '';
+  // Show welcome back
+  var feed = document.getElementById('agentFeed');
+  feed.innerHTML = `<div class="welcome">
+    <div class="welcome-icon">🤖</div>
+    <div class="welcome-title">Python AI Agent</div>
+    <div class="welcome-sub">Ask anything Python. The agent thinks through your problem, runs code autonomously, fixes errors, and explains every step.</div>
+  </div>`;
+}
+
+// ── Main Agent ────────────────────────────────────────────────────────────
+async function askAgent() {
+  var question = document.getElementById('userInput').value.trim();
+  var code = document.getElementById('codeEditor').value.trim();
+  if (!question && !code) return;
+  if (agentRunning) return;
+
+  agentRunning = true; stopRequested = false; loopCount = 0;
+  document.getElementById('askBtn').disabled = true;
+  document.getElementById('stopBtn').classList.add('show');
+  document.getElementById('userInput').value = '';
+
+  // Show user message
+  var displayText = question || '(analysing code in editor)';
+  if (code) displayText += '\n\n[Code provided in editor]';
+  addUserMsg(displayText);
+
+  // Build context
+  var modeInstructions = {
+    learn: 'The user wants to LEARN. Focus on explaining concepts clearly, provide examples they can run and modify, build understanding step by step.',
+    debug: 'The user wants to DEBUG. Find the exact issue, explain why it happens, show the fix with working code.',
+    build: 'The user wants to BUILD something. Co-create the solution, explain each decision, make it production-quality.'
+  };
+
+  var systemPrompt = `You are an expert Python AI Agent that uses a ReAct (Reason + Act + Observe) loop to solve problems.
+
+You have these tools:
+- run_code: Execute Python code and see output
+- explain: Teach a Python concept with examples  
+- fix_error: Identify and fix code errors
+- optimise: Improve code quality and performance
+- test_solution: Verify code correctness
+
+Current mode: ${currentMode.toUpperCase()}
+${modeInstructions[currentMode]}
+
+CRITICAL RULES:
+1. You ONLY help with Python programming. Refuse anything else politely.
+2. Always think before acting. Show your reasoning.
+3. When you write code to run, wrap it in <RUN_CODE> tags
+4. When you want to explain something, use <EXPLAIN> tags
+5. When analysis is complete, use <DONE> tags with a summary
+6. Keep each response focused — one step at a time
+7. After running code, always interpret the output for the user
+8. Maximum 5 iterations per session to keep responses fast
+
+Format your response as:
+THOUGHT: [your reasoning about what to do]
+ACTION: [what you are doing — run_code / explain / fix / optimise / test]
+<RUN_CODE>
+[python code here]
+</RUN_CODE>
+or
+<EXPLAIN>
+[explanation here]
+</EXPLAIN>
+or
+<DONE>
+[final summary and key takeaways]
+</DONE>`;
+
+  // Build messages
+  var messages = [...sessionHistory];
+  var userContent = question || 'Please analyse the code I provided.';
+  if (code) userContent += '\n\nCode to analyse:\n```python\n' + code + '\n```';
+  messages.push({role:'user', content: userContent});
+
+  // ReAct loop — max 5 iterations
+  var maxIterations = 5;
+  var iteration = 0;
+
+  while (iteration < maxIterations && !stopRequested) {
+    iteration++;
+    loopCount++;
+    document.getElementById('loopCount').textContent = 'Loop ' + loopCount;
+
+    var typing = addTyping();
+
+    // Call Groq via Cloudflare Worker
+    var response = await callGroq(systemPrompt, messages);
+    removeTyping();
+
+    if (!response || stopRequested) break;
+
+    totalTokens += (response.length / 4) | 0;
+    document.getElementById('tokenCount').textContent = totalTokens + ' tokens used';
+
+    // Parse response
+    var parsed = parseAgentResponse(response);
+
+    // Show THOUGHT
+    if (parsed.thought) {
+      var thinkEl = addStep('think', 'THINKING', '');
+      setStepContent(thinkEl, esc(parsed.thought));
+    }
+
+    // Handle ACTION
+    if (parsed.action) {
+      var actEl = addStep('act', 'ACTION: ' + parsed.action.toUpperCase(), '', parsed.action.toLowerCase().replace(/[^a-z]/g,''));
+      var actionContent = '';
+
+      if (parsed.runCode) {
+        actionContent = 'Running code:' + formatCode(parsed.runCode);
+        setStepContent(actEl, actionContent);
+
+        // Actually run the code
+        var result = await runCode(parsed.runCode);
+
+        // Update editor with agent's code
+        document.getElementById('codeEditor').value = parsed.runCode;
+        var ob = document.getElementById('outBox');
+        ob.className = 'out-box' + (result.err ? ' err' : '');
+        ob.textContent = result.out;
+
+        // Show observation
+        var obsEl = addStep('observe', 'OBSERVATION', '');
+        setStepContent(obsEl, 'Output:' + formatOutput(result.out, result.err));
+
+        // Add result to messages for next iteration
+        messages.push({role:'assistant', content: response});
+        messages.push({role:'user', content: 'Code output:\n```\n' + result.out + '\n```\nPlease continue your analysis based on this output. If the code works correctly and the goal is achieved, use <DONE> tags. If there are errors, fix them.'});
+
+        if (!result.err && !parsed.done) {
+          // Code ran successfully — check if we should continue
+          if (iteration >= 2) {
+            // Likely done after successful run
+            var doneEl = addStep('done', 'COMPLETE', '');
+            setStepContent(doneEl, parsed.explain || 'Code ran successfully. The agent has completed the task.');
+            break;
+          }
+        } else if (result.err) {
+          // Error — continue to fix
+          continue;
+        }
+      } else if (parsed.explain) {
+        actionContent = formatExplain(parsed.explain);
+        setStepContent(actEl, actionContent);
+        messages.push({role:'assistant', content: response});
+        // Explanation is usually complete
+        if (!parsed.runCode) break;
+      }
+    }
+
+    if (parsed.done) {
+      var doneEl = addStep('done', 'TASK COMPLETE', '');
+      setStepContent(doneEl, formatExplain(parsed.done));
+      sessionHistory.push({role:'user', content: userContent});
+      sessionHistory.push({role:'assistant', content: response});
+      // Keep last 10 messages for context
+      if (sessionHistory.length > 10) sessionHistory = sessionHistory.slice(-10);
+      break;
+    }
+
+    // If no structured tags found, show as explanation and stop
+    if (!parsed.thought && !parsed.runCode && !parsed.explain && !parsed.done) {
+      var explEl = addStep('act', 'RESPONSE', '', 'explain');
+      setStepContent(explEl, formatExplain(response));
+      sessionHistory.push({role:'user', content: userContent});
+      sessionHistory.push({role:'assistant', content: response});
+      if (sessionHistory.length > 10) sessionHistory = sessionHistory.slice(-10);
+      break;
+    }
+
+    if (iteration >= maxIterations) {
+      var limitEl = addStep('done', 'SESSION LIMIT REACHED', '');
+      setStepContent(limitEl, 'The agent has completed ' + maxIterations + ' iterations. Ask a follow-up question to continue.');
+      break;
+    }
+  }
+
+  agentRunning = false;
+  document.getElementById('askBtn').disabled = false;
+  document.getElementById('stopBtn').classList.remove('show');
+  document.getElementById('loopCount').textContent = 'Done (' + loopCount + ' loops)';
+}
+
+function formatExplain(text) {
+  // Convert markdown-style bold and code
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code style="background:var(--bg);padding:1px 4px;border-radius:3px;font-family:var(--font-mono);font-size:11px;color:#cdd6f4">$1</code>')
+    .replace(/\n/g, '<br/>');
+}
+
+function parseAgentResponse(text) {
+  var result = {thought:null, action:null, runCode:null, explain:null, done:null};
+
+  // Extract THOUGHT
+  var thoughtMatch = text.match(/THOUGHT:\s*([\s\S]*?)(?=ACTION:|<RUN_CODE>|<EXPLAIN>|<DONE>|$)/i);
+  if (thoughtMatch) result.thought = thoughtMatch[1].trim();
+
+  // Extract ACTION label
+  var actionMatch = text.match(/ACTION:\s*([^\n]+)/i);
+  if (actionMatch) result.action = actionMatch[1].trim();
+
+  // Extract RUN_CODE
+  var codeMatch = text.match(/<RUN_CODE>([\s\S]*?)<\/RUN_CODE>/i);
+  if (codeMatch) result.runCode = codeMatch[1].trim();
+
+  // Extract EXPLAIN
+  var explainMatch = text.match(/<EXPLAIN>([\s\S]*?)<\/EXPLAIN>/i);
+  if (explainMatch) result.explain = explainMatch[1].trim();
+
+  // Extract DONE
+  var doneMatch = text.match(/<DONE>([\s\S]*?)<\/DONE>/i);
+  if (doneMatch) result.done = doneMatch[1].trim();
+
+  // If nothing structured, treat whole response as explanation
+  if (!result.thought && !result.runCode && !result.explain && !result.done) {
+    result.explain = text;
+    result.action = 'explain';
+  }
+
+  return result;
+}
+
+// ── Groq API Call ─────────────────────────────────────────────────────────
+async function callGroq(system, messages) {
+  try {
+    var resp = await fetch('https://python-tutor-proxy.ejraman.workers.dev', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        system: system,
+        messages: messages,
+        max_tokens: 1000
+      })
+    });
+    var data = await resp.json();
+    return data.content && data.content[0] ? data.content[0].text : null;
+  } catch(e) {
+    addStep('error', 'CONNECTION ERROR', '').innerHTML = 'Could not reach the AI. Please try again.';
+    return null;
+  }
+}
+
+// ── Test Suite ────────────────────────────────────────────────────────────
+var TEST_SUITE = [
+  {
+    category: 'Variables & Data Types', complexity: 'simple',
+    tests: [
+      {id:'V01', desc:'String variable assignment', code:'name = "Alice"\nprint(type(name).__name__, name)', expected:'str Alice'},
+      {id:'V02', desc:'Integer variable', code:'age = 25\nprint(type(age).__name__, age)', expected:'int 25'},
+      {id:'V03', desc:'Float variable', code:'gpa = 3.85\nprint(type(gpa).__name__, gpa)', expected:'float 3.85'},
+      {id:'V04', desc:'Boolean variable', code:'is_student = True\nprint(type(is_student).__name__, is_student)', expected:'bool True'},
+      {id:'V05', desc:'f-string interpolation', code:'name="Alex"\nage=20\nprint(f"Name: {name}, Age: {age}")', expected:'Name: Alex, Age: 20'},
+    ]
+  },
+  {
+    category: 'Operators & Logic', complexity: 'simple',
+    tests: [
+      {id:'O01', desc:'Arithmetic — power operator', code:'print(2 ** 8)', expected:'256'},
+      {id:'O02', desc:'Arithmetic — floor division', code:'print(17 // 5)', expected:'3'},
+      {id:'O03', desc:'Arithmetic — modulo remainder', code:'print(17 % 5)', expected:'2'},
+      {id:'O04', desc:'Comparison returns bool', code:'print(10 > 5)\nprint(10 == 10)\nprint(5 != 3)', expected:'True\nTrue\nTrue'},
+      {id:'O05', desc:'Logical operators', code:'print(True and False)\nprint(True or False)\nprint(not True)', expected:'False\nTrue\nFalse'},
+    ]
+  },
+  {
+    category: 'Control Flow', complexity: 'simple',
+    tests: [
+      {id:'C01', desc:'if/elif/else — grade A', code:'grade=95\nif grade>=90:\n    print("A")\nelif grade>=80:\n    print("B")\nelse:\n    print("C")', expected:'A'},
+      {id:'C02', desc:'if/elif/else — grade B', code:'grade=82\nif grade>=90:\n    print("A")\nelif grade>=80:\n    print("B")\nelse:\n    print("C")', expected:'B'},
+      {id:'C03', desc:'for loop with range', code:'total=0\nfor i in range(1,6):\n    total+=i\nprint(total)', expected:'15'},
+      {id:'C04', desc:'while loop countdown', code:'n=3\nwhile n>0:\n    print(n)\n    n-=1', expected:'3\n2\n1'},
+      {id:'C05', desc:'loop with break', code:'for i in range(10):\n    if i==4:\n        break\n    print(i)', expected:'0\n1\n2\n3'},
+    ]
+  },
+  {
+    category: 'Functions', complexity: 'medium',
+    tests: [
+      {id:'F01', desc:'Basic function with return', code:'def square(n):\n    return n**2\nprint(square(7))', expected:'49'},
+      {id:'F02', desc:'Default parameter', code:'def greet(name, msg="Hello"):\n    return f"{msg}, {name}"\nprint(greet("Alex"))\nprint(greet("Sam","Hi"))', expected:'Hello, Alex\nHi, Sam'},
+      {id:'F03', desc:'*args — variable arguments', code:'def total(*nums):\n    return sum(nums)\nprint(total(1,2,3,4,5))', expected:'15'},
+      {id:'F04', desc:'**kwargs — keyword arguments', code:'def info(**kw):\n    for k,v in kw.items():\n        print(f"{k}:{v}")\ninfo(name="Alex",age=20)', expected:'name:Alex\nage:20'},
+      {id:'F05', desc:'Lambda function', code:'square = lambda x: x**2\nresult = list(map(lambda x: x**2, [1,2,3,4,5]))\nprint(result)', expected:'[1, 4, 9, 16, 25]'},
+    ]
+  },
+  {
+    category: 'Lists & Dictionaries', complexity: 'medium',
+    tests: [
+      {id:'L01', desc:'List indexing first/last', code:'fruits=["apple","banana","cherry"]\nprint(fruits[0])\nprint(fruits[-1])', expected:'apple\ncherry'},
+      {id:'L02', desc:'List methods append/remove/sort', code:'nums=[3,1,4,1,5]\nnums.append(9)\nnums.remove(1)\nnums.sort()\nprint(nums)', expected:'[1, 3, 4, 5, 9]'},
+      {id:'L03', desc:'List comprehension with filter', code:'evens=[n for n in range(1,11) if n%2==0]\nprint(evens)', expected:'[2, 4, 6, 8, 10]'},
+      {id:'L04', desc:'Dictionary access and update', code:'d={"name":"Alex","age":20}\nd["age"]=21\nd["city"]="London"\nprint(d["name"],d["age"],d["city"])', expected:'Alex 21 London'},
+      {id:'L05', desc:'Dictionary get with default', code:'d={"name":"Alex"}\nprint(d.get("salary","N/A"))\nprint(d.get("name","N/A"))', expected:'N/A\nAlex'},
+    ]
+  },
+  {
+    category: 'Error Handling', complexity: 'medium',
+    tests: [
+      {id:'E01', desc:'ZeroDivisionError caught', code:'try:\n    x=1/0\nexcept ZeroDivisionError as e:\n    print(f"Caught: {e}")', expected:'Caught: division by zero'},
+      {id:'E02', desc:'ValueError caught on int()', code:'try:\n    n=int("abc")\nexcept ValueError as e:\n    print("Bad value")', expected:'Bad value'},
+      {id:'E03', desc:'finally always runs', code:'try:\n    x=10/2\nexcept:\n    print("Error")\nfinally:\n    print("Done")', expected:'Done'},
+      {id:'E04', desc:'Multiple except clauses', code:'def safe(a,b):\n    try:\n        return int(a)/int(b)\n    except ZeroDivisionError:\n        return "zero"\n    except ValueError:\n        return "bad"\nprint(safe(10,2))\nprint(safe(10,0))\nprint(safe("x",2))', expected:'5.0\nzero\nbad'},
+      {id:'E05', desc:'KeyError caught on dict', code:'d={"a":1}\ntry:\n    print(d["b"])\nexcept KeyError as e:\n    print(f"Missing key: {e}")', expected:"Missing key: 'b'"},
+    ]
+  },
+  {
+    category: 'Classes & OOP', complexity: 'complex',
+    tests: [
+      {id:'OO1', desc:'Class instantiation and method', code:'class Dog:\n    def __init__(self,name):\n        self.name=name\n    def bark(self):\n        return f"{self.name} says Woof!"\nd=Dog("Rex")\nprint(d.bark())', expected:'Rex says Woof!'},
+      {id:'OO2', desc:'__str__ method', code:'class Point:\n    def __init__(self,x,y):\n        self.x=x\n        self.y=y\n    def __str__(self):\n        return f"Point({self.x},{self.y})"\np=Point(3,4)\nprint(p)', expected:'Point(3,4)'},
+      {id:'OO3', desc:'Class attribute vs instance', code:'class Counter:\n    count=0\n    def __init__(self):\n        Counter.count+=1\na=Counter()\nb=Counter()\nprint(Counter.count)', expected:'2'},
+      {id:'OO4', desc:'Method with calculation', code:'class Rectangle:\n    def __init__(self,w,h):\n        self.w=w\n        self.h=h\n    def area(self):\n        return self.w*self.h\n    def perimeter(self):\n        return 2*(self.w+self.h)\nr=Rectangle(5,3)\nprint(r.area(),r.perimeter())', expected:'15 16'},
+    ]
+  },
+  {
+    category: 'String Operations', complexity: 'medium',
+    tests: [
+      {id:'S01', desc:'String slicing', code:'s="Hello World"\nprint(s[0:5])\nprint(s[-5:])', expected:'Hello\nWorld'},
+      {id:'S02', desc:'String methods', code:'s="  hello world  "\nprint(s.strip().upper())', expected:'HELLO WORLD'},
+      {id:'S03', desc:'String split and join', code:'words="one,two,three"\nlst=words.split(",")\nprint(lst)\nprint("-".join(lst))', expected:"['one', 'two', 'three']\none-two-three"},
+      {id:'S04', desc:'String formatting', code:'name="Alice"\nscore=95.5\nprint(f"{name} scored {score:.1f}%")', expected:'Alice scored 95.5%'},
+      {id:'S05', desc:'String find and replace', code:'s="Hello World"\nprint(s.replace("World","Python"))\nprint(s.find("World"))', expected:'Hello Python\n6'},
+    ]
+  },
+  {
+    category: 'Advanced Features', complexity: 'complex',
+    tests: [
+      {id:'A01', desc:'List comprehension nested', code:'matrix=[[1,2,3],[4,5,6],[7,8,9]]\nflat=[x for row in matrix for x in row]\nprint(flat)', expected:'[1, 2, 3, 4, 5, 6, 7, 8, 9]'},
+      {id:'A02', desc:'zip() function', code:'names=["Alice","Bob","Carol"]\nscores=[85,92,78]\nfor n,s in zip(names,scores):\n    print(f"{n}:{s}")', expected:'Alice:85\nBob:92\nCarol:78'},
+      {id:'A03', desc:'enumerate() function', code:'fruits=["apple","banana","cherry"]\nfor i,f in enumerate(fruits,1):\n    print(f"{i}.{f}")', expected:'1.apple\n2.banana\n3.cherry'},
+      {id:'A04', desc:'Dictionary comprehension', code:'squares={n:n**2 for n in range(1,6)}\nprint(squares)', expected:'{1: 1, 2: 4, 3: 9, 4: 16, 5: 25}'},
+      {id:'A05', desc:'Nested function / closure', code:'def multiplier(x):\n    def inner(y):\n        return x*y\n    return inner\ndouble=multiplier(2)\nprint(double(5))\nprint(double(10))', expected:'10\n20'},
+    ]
+  },
+  {
+    category: 'Edge Cases & Errors', complexity: 'complex',
+    tests: [
+      {id:'X01', desc:'Empty list operations', code:'lst=[]\nprint(len(lst))\nprint(lst[:5])\nprint(bool(lst))', expected:'0\n[]\nFalse'},
+      {id:'X02', desc:'Integer division edge case', code:'print(7//2)\nprint(-7//2)\nprint(7%-2)', expected:'3\n-4\n-1'},
+      {id:'X03', desc:'String multiplication', code:'print("abc"*3)\nprint("-"*10)', expected:'abcabcabc\n----------'},
+      {id:'X04', desc:'Chained comparison', code:'x=5\nprint(1<x<10)\nprint(1<x<4)', expected:'True\nFalse'},
+      {id:'X05', desc:'None and truthiness', code:'x=None\nprint(x is None)\nprint(bool(x))\nprint(x or "default")', expected:'True\nFalse\ndefault'},
+    ]
+  }
+];
+
+var testResults = {};
+var testRunning = false;
+
+function initTestUI() {
+  var body = document.getElementById('testBody');
+  body.innerHTML = '';
+  testResults = {};
+  var totalTests = 0;
+
+  TEST_SUITE.forEach(function(cat, ci) {
+    totalTests += cat.tests.length;
+    var catDiv = document.createElement('div');
+    catDiv.className = 'test-category';
+    catDiv.id = 'cat-' + ci;
+
+    var complexClass = 'c-' + cat.complexity;
+    var hdr = `<div class="cat-hdr" onclick="toggleCat(${ci})">
+      <span class="cat-name">${cat.category}</span>
+      <span class="cat-badge ${complexClass}">${cat.complexity}</span>
+      <span class="cat-progress" id="cat-prog-${ci}">${cat.tests.length} tests</span>
+    </div>`;
+
+    var rows = cat.tests.map(function(t) {
+      testResults[t.id] = {status:'pending', actual:'', time:0, error:''};
+      return `<tr id="row-${t.id}" onclick="toggleExpand('${t.id}')">
+        <td style="color:var(--muted);font-family:var(--font-mono);font-size:10px">${t.id}</td>
+        <td style="color:var(--text)">${t.desc}</td>
+        <td><span class="complexity-badge ${complexClass}">${cat.complexity}</span></td>
+        <td><code class="test-code" title="${esc2(t.code)}">${esc2(t.code.split('\n')[0])}</code></td>
+        <td><code class="test-code" style="color:var(--yellow)">${esc2(t.expected.split('\n')[0])}</code></td>
+        <td><span class="test-output pending" id="out-${t.id}">—</span></td>
+        <td><span class="status-pending" id="status-${t.id}">PENDING</span></td>
+        <td class="time-cell" id="time-${t.id}">—</td>
+      </tr>
+      <tr class="expand-row" id="expand-${t.id}" style="display:none">
+        <td colspan="8" class="expand-content" id="expand-content-${t.id}"></td>
+      </tr>`;
+    }).join('');
+
+    catDiv.innerHTML = hdr + `<table class="test-table">
+      <thead><tr>
+        <th>ID</th><th>Description</th><th>Level</th>
+        <th>Code</th><th>Expected</th><th>Actual</th>
+        <th>Status</th><th>Time</th>
+      </tr></thead>
+      <tbody id="tbody-${ci}">${rows}</tbody>
+    </table>`;
+
+    body.appendChild(catDiv);
+  });
+
+  document.getElementById('statPending').textContent = totalTests + ' Pending';
+  document.getElementById('statPass').textContent = '0 Pass';
+  document.getElementById('statFail').textContent = '0 Fail';
+  document.getElementById('statError').textContent = '0 Error';
+}
+
+function toggleCat(ci) {
+  var tbody = document.getElementById('tbody-' + ci);
+  var table = tbody.closest('table');
+  table.style.display = table.style.display === 'none' ? '' : 'none';
+}
+
+function toggleExpand(id) {
+  var row = document.getElementById('expand-' + id);
+  var content = document.getElementById('expand-content-' + id);
+  if (row.style.display === 'none') {
+    // Find test
+    var test = null;
+    TEST_SUITE.forEach(function(cat) {
+      cat.tests.forEach(function(t) { if(t.id===id) test=t; });
+    });
+    var r = testResults[id];
+    content.innerHTML = 
+      '<b style="color:var(--accent)">Full Code:</b>\n' + esc2(test.code) +
+      '\n\n<b style="color:var(--yellow)">Expected:</b>\n' + esc2(test.expected) +
+      '\n\n<b style="color:' + (r.status==='pass'?'#4ade80':r.status==='fail'?'#f87171':'#fb923c') + '">Actual Output:</b>\n' + esc2(r.actual || '(not run yet)') +
+      (r.error ? '\n\n<b style="color:var(--red)">Error:</b>\n' + esc2(r.error) : '');
+    row.style.display = '';
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function esc2(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function runAllTests() {
+  if (!pyReady) { alert('Python is still loading — please wait.'); return; }
+  if (testRunning) return;
+  testRunning = true;
+
+  var btn = document.getElementById('runAllBtn');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+
+  initTestUI();
+
+  var pass=0, fail=0, error=0, total=0;
+
+  for (var ci=0; ci<TEST_SUITE.length; ci++) {
+    var cat = TEST_SUITE[ci];
+    var catPass=0;
+
+    for (var ti=0; ti<cat.tests.length; ti++) {
+      var test = cat.tests[ti];
+      total++;
+
+      // Update status to running
+      var statusEl = document.getElementById('status-' + test.id);
+      if (statusEl) statusEl.innerHTML = '<span class="status-running">RUNNING...</span>';
+
+      // Scroll to row
+      var row = document.getElementById('row-' + test.id);
+      if (row) row.scrollIntoView({behavior:'smooth', block:'nearest'});
+
+      var start = performance.now();
+      var result = await runCode(test.code);
+      var elapsed = (performance.now() - start).toFixed(1);
+
+      var actual = result.out.trim();
+      var expected = test.expected.trim();
+      var status = result.err ? 'error' : (actual === expected ? 'pass' : 'fail');
+
+      testResults[test.id] = {status:status, actual:actual, time:elapsed, error:result.err?actual:''};
+
+      // Update UI
+      var statusEl2 = document.getElementById('status-' + test.id);
+      var outEl2 = document.getElementById('out-' + test.id);
+      var timeEl = document.getElementById('time-' + test.id);
+
+      if (statusEl2) {
+        if (status==='pass') {
+          statusEl2.innerHTML = '<span class="status-pass">✓ PASS</span>';
+          catPass++;
+          pass++;
+        } else if (status==='fail') {
+          statusEl2.innerHTML = '<span class="status-fail">✗ FAIL</span>';
+          fail++;
+        } else {
+          statusEl2.innerHTML = '<span class="status-error">⚠ ERROR</span>';
+          error++;
+        }
+      }
+      if (outEl2) {
+        outEl2.className = 'test-output ' + (status==='pass'?'ok':'err');
+        outEl2.textContent = actual.split('\n')[0].substring(0,30) + (actual.length>30?'...':'');
+        outEl2.title = actual;
+      }
+      if (timeEl) timeEl.textContent = elapsed + 'ms';
+
+      // Highlight row
+      if (row) {
+        row.style.background = status==='pass'?'rgba(74,222,128,.04)':status==='fail'?'rgba(248,113,113,.04)':'rgba(251,146,60,.04)';
+      }
+
+      // Update stats
+      document.getElementById('statPass').textContent = pass + ' Pass';
+      document.getElementById('statFail').textContent = fail + ' Fail';
+      document.getElementById('statError').textContent = error + ' Error';
+      document.getElementById('statPending').textContent = (total - pass - fail - error) + ' Pending';
+
+      // Small delay between tests for UI updates
+      await new Promise(function(r){ setTimeout(r, 30); });
+    }
+
+    // Update category header
+    var catProg = document.getElementById('cat-prog-' + ci);
+    if (catProg) {
+      catProg.textContent = catPass + '/' + cat.tests.length + ' pass';
+      catProg.style.color = catPass===cat.tests.length ? 'var(--green)' : 'var(--orange)';
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '&#9654; Re-run All Tests';
+  testRunning = false;
+
+  // Final summary
+  document.getElementById('statPending').textContent = '0 Pending';
+  console.log('Test run complete:', pass, 'pass,', fail, 'fail,', error, 'error');
+}
+
+function exportReport() {
+  var now = new Date().toLocaleString();
+  var pass=0, fail=0, error=0;
+  Object.values(testResults).forEach(function(r) {
+    if(r.status==='pass') pass++;
+    else if(r.status==='fail') fail++;
+    else if(r.status==='error') error++;
+  });
+  var total = Object.keys(testResults).length;
+
+  var rows = '';
+  TEST_SUITE.forEach(function(cat) {
+    cat.tests.forEach(function(t) {
+      var r = testResults[t.id] || {status:'pending',actual:'—',time:'—'};
+      var statusStyle = r.status==='pass'?'color:#16a34a;font-weight:700':r.status==='fail'?'color:#dc2626;font-weight:700':r.status==='error'?'color:#ea580c;font-weight:700':'color:#6b7280';
+      var statusText = r.status==='pass'?'✓ PASS':r.status==='fail'?'✗ FAIL':r.status==='error'?'⚠ ERROR':'PENDING';
+      rows += `<tr>
+        <td style="font-family:monospace;color:#6b7280">${t.id}</td>
+        <td>${cat.category}</td>
+        <td>${t.desc}</td>
+        <td style="font-size:11px"><span style="padding:1px 6px;border-radius:3px;background:${cat.complexity==='simple'?'#f0fdf4':cat.complexity==='medium'?'#fefce8':'#fff1f2'};color:${cat.complexity==='simple'?'#16a34a':cat.complexity==='medium'?'#ca8a04':'#dc2626'}">${cat.complexity}</span></td>
+        <td style="font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.actual}">${(r.actual||'—').split('\n')[0].substring(0,40)}</td>
+        <td style="${statusStyle}">${statusText}</td>
+        <td style="font-family:monospace;font-size:11px;color:#6b7280">${r.time?r.time+'ms':'—'}</td>
+      </tr>`;
+    });
+  });
+
+  var html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Python AI Agent — Test Report</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;color:#111;margin:0;padding:24px}
+.header{background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;padding:24px 28px;border-radius:10px;margin-bottom:20px}
+.header h1{margin:0 0 4px;font-size:20px}
+.header p{margin:0;color:#94a3b8;font-size:12px}
+.summary{display:flex;gap:12px;margin-bottom:20px}
+.sum-card{flex:1;padding:14px 16px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;text-align:center}
+.sum-num{font-size:24px;font-weight:800;margin-bottom:2px}
+.sum-lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+th{padding:10px 12px;text-align:left;background:#1e293b;color:#94a3b8;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;font-size:12px;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.footer{margin-top:16px;text-align:center;font-size:11px;color:#9ca3af}
+</style></head><body>
+<div class="header">
+  <h1>Python AI Agent — Automated Test Report</h1>
+  <p>Generated: ${now} &nbsp;|&nbsp; Total Tests: ${total} &nbsp;|&nbsp; Pass Rate: ${total>0?Math.round(pass/total*100):0}%</p>
+</div>
+<div class="summary">
+  <div class="sum-card"><div class="sum-num" style="color:#16a34a">${pass}</div><div class="sum-lbl">Pass</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:#dc2626">${fail}</div><div class="sum-lbl">Fail</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:#ea580c">${error}</div><div class="sum-lbl">Error</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:#111">${total}</div><div class="sum-lbl">Total</div></div>
+  <div class="sum-card"><div class="sum-num" style="color:#2563eb">${total>0?Math.round(pass/total*100):0}%</div><div class="sum-lbl">Pass Rate</div></div>
+</div>
+<table>
+  <thead><tr><th>ID</th><th>Category</th><th>Test Description</th><th>Complexity</th><th>Actual Output</th><th>Status</th><th>Time</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="footer">Python AI Agent &nbsp;|&nbsp; Powered by Pyodide + Groq &nbsp;|&nbsp; All tests run in browser</div>
+</body></html>`;
+
+  var blob = new Blob([html], {type:'text/html'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'python_agent_test_report_' + new Date().toISOString().slice(0,10) + '.html';
+  a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+loadPyodide_();
+</script>
+</body>
+</html>
